@@ -1,0 +1,354 @@
+import carla
+import time
+import random
+import math
+import xml.etree.ElementTree as ET
+import prediction_pb2 
+import rospy
+from std_msgs.msg import String
+from prediction_pb2 import PredictionObstacles
+
+debug = 0
+map_waypoints=[]
+ros_support=1
+#tree = ET.parse('/home/aravind/Desktop/GWM_Tasks/Carla/Precompiled/CARLA_0.9.4/CarlaUE4/Content/Carla/Maps/OpenDrive/town03.xml')
+#root = tree.getroot()
+apollo_x =369189.54
+apollo_y = 4321499.98
+
+def iResultantVelocity(Actor):
+	velX = Actor.get_velocity().x * Actor.get_velocity().x
+	velY = Actor.get_velocity().y * Actor.get_velocity().y
+	velZ = Actor.get_velocity().z * Actor.get_velocity().z
+	return math.sqrt(velX+velY+velZ)
+
+def getActorTrajectories(Actor,Map,World):
+	prediction_period = 5
+	velocityOfActor= iResultantVelocity(Actor)
+	if velocityOfActor < 2:
+		 distance_required=20
+	else: 
+		distance_required = velocityOfActor*prediction_period
+	Actor.set_simulate_physics(True)
+	noOfPaths=[]
+	waypoint = Map.get_waypoint(Actor.get_location())
+	nexts = waypoint.next(distance_required)
+	for i in range(len(nexts)):
+		waypointList=[]
+		waypoint = Map.get_waypoint(Actor.get_location())
+		for j in range(int(distance_required/2.0)):
+			nextWayPoint= waypoint.next(2.0)
+			if(len(nextWayPoint) > 1):
+				waypointList.append(nextWayPoint[i])
+				previousPoint=nextWayPoint[i]
+			else:
+				waypointList.append(nextWayPoint[0])
+				previousPoint=nextWayPoint[0]
+			waypoint=previousPoint
+		noOfPaths.append(waypointList)
+	obstacles = prediction_pb2.PredictionObstacles()
+	obstacle = obstacles.prediction_obstacle.add()
+	obstacle.perception_obstacle.id = 5
+	obstacle.perception_obstacle.position.x = Actor.get_location().x + apollo_x
+	obstacle.perception_obstacle.position.y = Actor.get_location().y + apollo_y
+	obstacle.perception_obstacle.position.z = Actor.get_location().z
+	obstacle.perception_obstacle.theta = Actor.get_transform().rotation.yaw
+	obstacle.perception_obstacle.velocity.x = Actor.get_velocity().x 
+	obstacle.perception_obstacle.velocity.y = Actor.get_velocity().y 
+	obstacle.perception_obstacle.velocity.z = Actor.get_velocity().z
+	obstacle.perception_obstacle.length = Actor.bounding_box.extent.x*2
+	obstacle.perception_obstacle.width = Actor.bounding_box.extent.y*2
+	obstacle.perception_obstacle.height = Actor.bounding_box.extent.z*2
+	boundingBox=getActorBoundingBox2DPoints(Actor,Map,World) 
+	for i in range(4):
+		obstacleCornerPoints = obstacle.perception_obstacle.polygon_point.add()
+		obstacleCornerPoints.x = boundingBox[i].x +apollo_x
+		obstacleCornerPoints.y = boundingBox[i].y +apollo_x
+		obstacleCornerPoints.z = boundingBox[i].z 
+	obstacle.perception_obstacle.type= 5
+	obstacle.perception_obstacle.confidence=1
+	obstacle.perception_obstacle.confidence_type= 1
+	obstacle.timestamp = time.time()
+	obstacle.predicted_period = 10
+	
+	for i in range(len(noOfPaths)):
+		trajectoryPoints = obstacle.trajectory.add()
+		trajectoryPoints.probability = 1
+		for LL in noOfPaths[i]:
+			trajectoryPoint = trajectoryPoints.trajectory_point.add()
+			trajectoryPoint.path_point.x= LL.transform.location.x +apollo_x
+			trajectoryPoint.path_point.y= LL.transform.location.y +apollo_y
+			trajectoryPoint.path_point.z= LL.transform.location.z
+			trajectoryPoint.path_point.theta= LL.transform.rotation.yaw
+			trajectoryPoint.path_point.kappa= 0
+			trajectoryPoint.path_point.s= 0
+			trajectoryPoint.path_point.dkappa= 0
+			trajectoryPoint.path_point.ddkappa= 0
+			trajectoryPoint.path_point.lane_id= LL.lane_id
+			trajectoryPoint.v = velocityOfActor
+			trajectoryPoint.a = 0
+			trajectoryPoint.relative_time = 0
+	if debug:
+		for i in range(len(noOfPaths)):
+			for LL in noOfPaths[i]:
+				World.debug.draw_point(LL.transform.location, size=0.1, color=carla.Color(), life_time=-1.0, persistent_lines=True)
+	if ros_support:
+		rospy.init_node('Prediction_Publisher', anonymous=True)
+		pub = rospy.Publisher('/carla/prediction', String, queue_size=10)
+		rate = rospy.Rate(10) # 10hz
+		s = String()
+		s.data= obstacles.SerializeToString()
+		pub.publish(s)
+	return obstacles
+
+def getActorBoundingBox(Actor,Map,World):
+	transform=Actor.get_transform()
+	bounding_box = Actor.bounding_box
+	bounding_box.location= transform.location + bounding_box.location
+	if debug:
+		World.debug.draw_box(bounding_box, transform.rotation)		
+	return bounding_box
+
+def iConvertTo360(x):
+	if x >0:
+		x+=0.0
+	else:
+		x=360+x
+	return x
+
+
+def iGetRotatedPoint(car_bounding_box,point_angle,car_transform):
+	rDistance= math.sqrt((car_bounding_box.extent.x * car_bounding_box.extent.x)+(car_bounding_box.extent.y*car_bounding_box.extent.y))
+	car_angle=car_transform.rotation.yaw
+	car_angle=iConvertTo360(car_angle)
+	point_angle=math.degrees(point_angle)
+	point_angle= iConvertTo360(point_angle)
+	car_bounding_box.location.x =  car_bounding_box.location.x + (rDistance * math.sin(math.radians(point_angle)))
+	car_bounding_box.location.y =  car_bounding_box.location.y + (rDistance * math.cos(math.radians(point_angle)))
+	tempX= car_bounding_box.location.x
+	tempY= car_bounding_box.location.y
+	car_bounding_box.location.y = car_transform.location.y + (math.cos(math.radians(360-car_angle)) * (tempY- car_transform.location.y)) - (math.sin(math.radians(360-car_angle)) * (tempX- car_transform.location.x))
+	car_bounding_box.location.x = car_transform.location.x + (math.sin(math.radians(360-car_angle)) * (tempY- car_transform.location.y)) + (math.cos(math.radians(360-car_angle)) * (tempX- car_transform.location.x))
+	return car_bounding_box.location
+
+
+
+def getActorBoundingBox2DPoints(Actor,Map,World):
+	points = []
+	transform=Actor.get_transform()
+	
+	bounding_box = Actor.bounding_box
+	bounding_box.location = bounding_box.location + transform.location
+	angle1 = math.atan2 (bounding_box.extent.x,bounding_box.extent.y)
+	point1= iGetRotatedPoint(bounding_box,angle1,transform)
+	points.append(point1)
+
+	bounding_box = Actor.bounding_box
+	bounding_box.location = bounding_box.location + transform.location
+	rDistance= math.sqrt((bounding_box.extent.x*bounding_box.extent.x)+(bounding_box.extent.y*bounding_box.extent.y))
+	angle2 = math.atan2 (bounding_box.extent.x,-bounding_box.extent.y)
+	point2= iGetRotatedPoint(bounding_box,angle2,transform)
+	points.append(point2)
+
+	bounding_box = Actor.bounding_box
+	bounding_box.location = bounding_box.location + transform.location
+	rDistance= math.sqrt((bounding_box.extent.x*bounding_box.extent.x)+(bounding_box.extent.y*bounding_box.extent.y))
+	angle3 = math.atan2 (-bounding_box.extent.x, -bounding_box.extent.y )
+	point3= iGetRotatedPoint(bounding_box,angle3,transform)
+	points.append(point3)
+
+	bounding_box = Actor.bounding_box
+	bounding_box.location = bounding_box.location + transform.location 
+	rDistance= math.sqrt((bounding_box.extent.x*bounding_box.extent.x)+(bounding_box.extent.y*bounding_box.extent.y))
+	angle4 = math.atan2 (-bounding_box.extent.x, bounding_box.extent.y)
+	point4= iGetRotatedPoint(bounding_box,angle4,transform)
+	points.append(point4)
+	
+	if 0:
+		for i in range(len(points)):
+			World.debug.draw_point(points[i], size=0.2, color=carla.Color(r=255), life_time=-1.0, persistent_lines=True)
+	return points
+
+def getActorIds(Actor,Map,World):
+	waypoint = Map.get_waypoint(Actor.get_location())
+	return waypoint.road_id,waypoint.lane_id
+
+
+def getActorLanePointsForDefinedDistance(Actor,Map,World):
+	definedDistance = 50
+	road_id,lane_id=getActorIds(Actor,Map,World)
+	laneCenterWaypoints=[]
+	laneCenter=[]
+	laneLeft=[]
+	laneRight=[]
+	waypoint= Map.get_waypoint(Actor.get_location())
+	laneCenterWaypoints.append(waypoint)
+	for i in range(definedDistance):	
+		nexts = waypoint.next(5.0)
+		if(len(nexts) > 1):
+			pass
+		else:
+			laneCenterWaypoints.append(nexts[0])
+			waypoint=nexts[0]
+	for i in range(len(laneCenterWaypoints)):
+		waypoint = laneCenterWaypoints[i].transform.location
+		
+		waypoint.x = waypoint.x + ((laneCenterWaypoints[i].lane_width/2)* (math.cos(math.radians(iConvertTo360(laneCenterWaypoints[i].transform.rotation.yaw)+ 90 ))))
+		waypoint.y = waypoint.y + ((laneCenterWaypoints[i].lane_width/2) * (math.sin(math.radians(iConvertTo360(laneCenterWaypoints[i].transform.rotation.yaw)+ 90 ))))
+		laneRight.append(waypoint)
+	for i in range(len(laneCenterWaypoints)):
+		waypoint = laneCenterWaypoints[i].transform.location
+		waypoint.x = waypoint.x + (laneCenterWaypoints[i].lane_width/2 * (math.cos(math.radians(iConvertTo360(laneCenterWaypoints[i].transform.rotation.yaw)- 90 ))))
+		waypoint.y = waypoint.y + (laneCenterWaypoints[i].lane_width/2 * (math.sin(math.radians(iConvertTo360(laneCenterWaypoints[i].transform.rotation.yaw)- 90 ))))
+		laneLeft.append(waypoint)
+	
+	for i in range(len(laneCenterWaypoints)):
+		laneCenter.append(laneCenterWaypoints[i].transform.location)
+	
+	if debug:
+		for i in range(len(laneCenterWaypoints)):
+			World.debug.draw_point(laneCenter[i], size=0.2, color=carla.Color(r=255), life_time=-1.0, persistent_lines=True)
+			World.debug.draw_point(laneLeft[i], size=0.2, color=carla.Color(g=255), life_time=-1.0, persistent_lines=True)
+			World.debug.draw_point(laneRight[i], size=0.2, color=carla.Color(b=255), life_time=-1.0, persistent_lines=True)
+	return laneCenter,laneLeft,laneRight
+
+
+
+def iGetLaneIdsInsideRoad(road_id):
+	ids=[]
+	laneLeft=[]
+	laneRight=[]
+	laneCenter=[]
+	laneOffset=[]
+	for road in root.iter('road'):
+		if(int(road.attrib['id'])==road_id):
+			laneOffsets = road.find('lanes').findall('laneOffset')
+			laneSection = road.find('lanes').findall('laneSection')			
+			for j in range(len(laneSection)):
+				laneOffset.append(float(laneSection[j].attrib['s'])) 
+				laneSectionIds=[]				
+				if (laneSection[j].find('left') != None) :
+					laneLeft=laneSection[j].find('left').findall('lane')
+				if (laneSection[j].find('right') != None) :
+					laneRight=laneSection[j].find('right').findall('lane')
+				if (laneSection[j].find('center') != None) :
+					laneCenter=laneSection[j].find('center').findall('lane')
+				for i in range(len(laneLeft)):
+					if(laneLeft[i].attrib['type'] =='driving'):
+						laneSectionIds.append(int(laneLeft[i].attrib['id'])) 
+				for i in range(len(laneRight)):
+					 if( laneRight[i].attrib['type'] =='driving'):
+					 	laneSectionIds.append(int(laneRight[i].attrib['id']))
+				for i in range(len(laneCenter)):
+					if( laneCenter[i].attrib['type'] =='driving'):
+					 	laneSectionIds.append(int(laneCenter[i].attrib['id']))
+				ids.append(laneSectionIds)
+	return ids,laneOffset
+
+def iGetNoOfLanesInTravellingDirection(road_id,lane_id):
+	laneCount=0
+	for road in root.iter('road'):
+		if(int(road.attrib['id'])==road_id):
+			laneSection= road.find('lanes').findall('laneSection')
+			if lane_id<0:
+				return (len(laneSection[0].find('right').findall('lane'))) #This place to be changed after lane Section update is released from Carla
+			else:
+				return (len(laneSection[0].find('left').findall('lane')))
+
+def getActorRoadPoints(Actor,Map,World):
+	road_id,lane_id= getActorIds(Actor,Map,World)
+	roads=[]
+	laneSections=[]
+	lanes=[]
+	for waypoint in map_waypoints:
+		if(waypoint.road_id == road_id):
+			laneCenter=[]
+			laneLeft=[]
+			laneRight=[]
+			laneDict={}
+
+def getObservationSpace(Actor,Map,World):
+	x  = Actor.get_location().x
+	y  = Actor.get_location().y
+	cosh = math.cos(math.radians(iConvertTo360(Actor.get_transform().rotation.yaw)))
+	sinh = math.sin(math.radians(iConvertTo360(Actor.get_transform().rotation.yaw)))
+	Vx = Actor.get_velocity().x
+	Vy = Actor.get_velocity().y
+	return x,y,Vx,Vy,cosh,sinh
+
+def getActorRoadWaypointsForDefinedDistance(Actor,Map,World):
+	requiredDistance=10
+	road_id,lane_id=getActorIds(Actor,Map,World)
+	laneCount =iGetNoOfLanesInTravellingDirection(road_id,lane_id)
+	lanes=[[]for i in range(laneCount+1)]
+	waypoint=Map.get_waypoint(Actor.get_location())
+	print("Vehilce location ID is {} {}".format(waypoint.lane_id , waypoint.road_id))
+	for i in range(requiredDistance):
+		count=0
+		leftPoint = waypoint.get_left_lane()
+		print("leftPoint ID is {}".format(leftPoint.lane_id))
+		if (leftPoint == None) or (leftPoint.lane_id > 0 and lane_id < 0) or (leftPoint.lane_id <0 and lane_id>0):
+			leftPoint=waypoint
+		else:
+			while ((leftPoint != None) and (not((leftPoint.lane_id > 0 and lane_id < 0) or (leftPoint.lane_id <0 and lane_id>0)))):
+				leftPoint = leftPoint.get_left_lane()
+			leftPoint= leftPoint.get_left_lane()
+
+		lanes[count].append(leftPoint)
+		count += 1
+		rightPoint = leftPoint.get_right_lane()
+		while rightPoint != None:
+			lanes[count].append(rightPoint)
+			count += 1
+			rightPoint = rightPoint.get_right_lane()
+		waypoint=waypoint.next(1.0)[0]
+	if debug:
+		for i in range(count):
+			for j in range(requiredDistance):
+				World.debug.draw_point(lanes[i][j].transform.location, size=0.2, color=carla.Color(r=255), life_time=-1.0, persistent_lines=True)
+
+#Transform(Location(x=229.931, y=81.3834, z=0.085772), Rotation(pitch=0.596672, yaw=92.8762, roll=0.0139714))
+
+def main():
+	try:
+		client = carla.Client('localhost', 2000)
+		client.set_timeout(10.0)
+		world = client.get_world()
+		map = world.get_map()
+		map.save_to_disk("/home/aravind/Desktop/GWM_Tasks/Carla/Precompiled/CARLA_0.9.4/CarlaUE4/Content/Carla/Maps/OpenDrive/town03.xml")
+		blueprint_library = world.get_blueprint_library()
+		for actor in world.get_actors():
+			if actor.attributes.get('role_name') == 'hero':
+				ego = actor
+				break
+		
+		transform = ego.get_transform()
+		transform.location.x= 229.931
+		transform.location.y= 81.3834
+		transform.location.z= 0.085772
+		transform.rotation.pitch=0.596672
+		transform.rotation.yaw=92.8762
+		transform.rotation.roll=0.0139714
+		ego.set_transform(transform)		
+		map_waypoints=map.generate_waypoints(1.0)
+
+		while True:
+
+			#print(getObservationSpace(ego,map,world))
+			#getActorLanePointsForDefinedDistance(ego,map,world)
+			#getActorBoundingBox2DPoints(ego,map,world)
+			getActorTrajectories(ego,map,world)
+			#getActorRoadWaypointsForDefinedDistance(ego,map,world)
+			time.sleep(0.1)
+		
+	finally:
+		print "Finally..!!!"
+		
+if __name__ == '__main__':
+
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print '\ndone.'

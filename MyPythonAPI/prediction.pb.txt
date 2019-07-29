@@ -1,0 +1,207 @@
+prediction_obstacle {
+  perception_obstacle {
+    id: 5
+    position {
+      x: 369419.471015
+      y: 4321581.36278
+      z: 0.128031924367
+    }
+    theta: 92.876411438
+    velocity {
+      x: 7.72606540522e-07
+      y: -5.12218466611e-05
+      z: 0.00445813173428
+    }
+    length: 3.97534775734
+    width: 1.69264507294
+    height: 1.60967278481
+    polygon_point {
+      x: 369418.526023
+      y: 369272.865478
+      z: 0.898031890392
+    }
+    polygon_point {
+      x: 369420.216529
+      y: 369272.950416
+      z: 0.898031890392
+    }
+    polygon_point {
+      x: 369420.416007
+      y: 369268.980086
+      z: 0.898031890392
+    }
+    polygon_point {
+      x: 369418.725501
+      y: 369268.895148
+      z: 0.898031890392
+    }
+    type: VEHICLE
+    confidence: 1.0
+    confidence_type: CONFIDENCE_CNN
+  }
+  timestamp: 1553254709.32
+  predicted_period: 10.0
+  trajectory {
+    probability: 1.0
+    trajectory_point {
+      path_point {
+        x: 369419.130103
+        y: 4321583.35508
+        z: 0.107727184892
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369419.081473
+        y: 4321585.35449
+        z: 0.127333045006
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369419.032844
+        y: 4321587.3539
+        z: 0.148577034473
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369418.984214
+        y: 4321589.35331
+        z: 0.171459168196
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369418.935584
+        y: 4321591.35272
+        z: 0.195979446173
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369418.88697
+        y: 4321593.35212
+        z: 0.222137838602
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369418.83834
+        y: 4321595.35154
+        z: 0.249934390187
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369418.78971
+        y: 4321597.35094
+        z: 0.279369056225
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369418.74108
+        y: 4321599.35035
+        z: 0.310441881418
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+    trajectory_point {
+      path_point {
+        x: 369418.692451
+        y: 4321601.34976
+        z: 0.343152821064
+        theta: 91.3932113647
+        kappa: 0.0
+        s: 0.0
+        dkappa: 0.0
+        ddkappa: 0.0
+        lane_id: -2
+      }
+      v: 0.00445842604903
+      a: 0.0
+      relative_time: 0.0
+    }
+  }
+}

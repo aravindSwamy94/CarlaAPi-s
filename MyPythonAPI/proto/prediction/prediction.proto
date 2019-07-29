@@ -1,0 +1,114 @@
+syntax = "proto2";
+
+
+message PathPoint {
+  // coordinates
+  optional double x = 1;
+  optional double y = 2;
+  optional double z = 3;
+
+  // direction on the x-y plane
+  optional double theta = 4;
+  // curvature on the x-y planning
+  optional double kappa = 5;
+  // accumulated distance from beginning of the path
+  optional double s = 6;
+  // derivative of kappa w.r.t s.
+  optional double dkappa = 7;
+  // derivative of derivative of kappa w.r.t s.
+  optional double ddkappa = 8;
+  // The lane ID where the path point is on
+  optional int32 lane_id = 9;
+}
+
+
+message TrajectoryPoint {
+  // path point
+  optional PathPoint path_point = 1;
+
+  // linear velocity
+  optional double v = 2;  // in [m/s]
+  // linear acceleration
+  optional double a = 3;
+  // relative time from beginning of the trajectory
+  optional double relative_time = 4;
+}
+
+message Trajectory {
+  optional double probability = 1;  // probability of this trajectory
+  repeated TrajectoryPoint trajectory_point = 2;
+}
+
+message Point {
+  optional double x = 1;  // in meters.
+  optional double y = 2;  // in meters.
+  optional double z = 3;  // height in meters.
+}
+
+message PerceptionObstacle {
+  optional int32 id = 1;  // obstacle ID.
+  optional Point position = 2;  // obstacle position in the world coordinate
+                                // system.
+  optional double theta = 3;  // heading in the world coordinate system.
+  optional Point velocity = 4;  // obstacle velocity.
+
+  // Size of obstacle bounding box.
+  optional double length = 5;  // obstacle length.
+  optional double width = 6;  // obstacle width.
+  optional double height = 7;  // obstacle height.
+
+  repeated Point polygon_point = 8;  // obstacle corner points.
+  // duration of an obstacle since detection in s.
+  optional double tracking_time = 9;
+
+  enum Type {
+    UNKNOWN = 0;
+    UNKNOWN_MOVABLE = 1;
+    UNKNOWN_UNMOVABLE = 2;
+    PEDESTRIAN = 3;  // Pedestrian, usually determined by moving behaviour.
+    BICYCLE = 4;  // bike, motor bike
+    VEHICLE = 5;  // Passenger car or truck.
+  };
+  optional Type type = 10;  // obstacle type
+  optional double timestamp = 11;  // GPS time in seconds.
+
+  // Just for offline debuging, onboard will not fill this field.
+  // Format like : [x0, y0, z0, x1, y1, z1...]
+  repeated double point_cloud = 12 [packed = true];
+
+  optional double confidence = 13 [default = 1.0];
+  enum ConfidenceType {
+      CONFIDENCE_UNKNOWN = 0;
+      CONFIDENCE_CNN = 1;
+      CONFIDENCE_RADAR = 2;
+  };
+  optional ConfidenceType confidence_type = 14 [default = CONFIDENCE_CNN];
+  repeated Point drops = 15;  // trajectory of object.
+}
+
+
+message PredictionObstacle {
+  optional PerceptionObstacle perception_obstacle = 1;
+  optional double timestamp = 2;  // GPS time in seconds
+  // the length of the time for this prediction (e.g. 10s)
+  optional double predicted_period = 3;
+  // can have multiple trajectories per obstacle
+  repeated Trajectory trajectory = 4;
+}
+
+message PredictionObstacles {
+  // timestamp is included in header
+  //optionalHeader header = 1;
+
+  // make prediction for multiple obstacles
+  repeated PredictionObstacle prediction_obstacle = 2;
+
+  // perception error code
+  //optional apollo.common.ErrorCode perception_error_code = 3;
+
+  // start timestamp
+  optional double start_timestamp = 4;
+
+  // end timestamp
+  optional double end_timestamp = 5;
+}
